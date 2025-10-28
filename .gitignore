@@ -1,0 +1,36 @@
+# 可执行文件
+server
+
+# 日志文件
+*.log
+2025_*.log
+
+# 上传文件
+uploads/
+
+# 编译文件
+*.o
+*.a
+*.so
+
+# 临时文件
+*.tmp
+*.swp
+*~
+
+# 数据库文件
+*.db
+*.sqlite
+
+# IDE文件
+.vscode/
+.idea/
+*.code-workspace
+
+# 模型文件（如果太大可以忽略）
+models/
+!models/haarcascade_frontalface.xml
+
+# 构建目录
+build/
+dist/
