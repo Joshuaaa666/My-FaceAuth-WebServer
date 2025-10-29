@@ -365,7 +365,14 @@ http_conn::HTTP_CODE http_conn::process_read()
             if (ret == BAD_REQUEST)
                 return BAD_REQUEST;
             else if (ret == GET_REQUEST)
+
             {
+                //文件上传检查
+                if(up_load())
+                {
+                    return handle_file_upload();
+                }
+
                 return do_request();
             }
             break;
@@ -374,7 +381,14 @@ http_conn::HTTP_CODE http_conn::process_read()
         {
             ret = parse_content(text);
             if (ret == GET_REQUEST)
+            {
+                //文件上传检查
+                if(up_load())
+                {
+                    return handle_file_upload();
+                }
                 return do_request();
+            }
             line_status = LINE_OPEN;
             break;
         }
@@ -391,6 +405,16 @@ http_conn::HTTP_CODE http_conn::do_request()
     int len = strlen(doc_root);
     //printf("m_url:%s\n", m_url);
     const char *p = strrchr(m_url, '/');
+    //处理/upload.html路径，直接返回上传页面
+    if(strcmp(m_url,"upload.html")==0)
+    {
+        strncpy(m_real_file+len,"upload.html",FILENAME_LEN-len-1);
+    }
+    //处理上传逻辑
+    else if(strcmp(m_url,"/upload")==0&&m_method)
+    {
+        retuen handle_file_upload();
+    }
 
     //处理cgi
     if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
@@ -699,4 +723,127 @@ void http_conn::process()
         close_conn();
     }
     modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+}
+bool http_conn::up_load()
+{
+    //仅支持POST方法上传文件
+    //解析请求头，获取Content-Type中的boundary
+    return m_method==POST&&string(m_content_type).find("multipart/form-data") != string::npos;
+}
+
+//从content_type中提取boundary
+string http_conn::extract_boundary()
+{
+    string content_type(m_content_type);
+    size_t pos=content_type().fine("boundary=");
+    if(pos!=string::npos)
+    {
+        return " ";
+
+    }
+    return content_type.substr(pos+9);//9为boundary=的长度
+
+}
+bool http_conn::save_uploaded_file(const string&file_data,const string&filename)
+{
+    //确保 uploads 目录存在
+    system("mkdir -p uploads");
+    string filepath="uploads/"+filename;
+    //"wb" 二进制写模式
+    FILE*file=fopen(filepath.c_str(),"wb");
+    if(!file)
+    {
+        retrun false;
+    }
+    //写入文件数据
+    //参数：数据指针、数据大小、数据块数、文件指针
+    size_t written=fwrite(file_data.c_str(),1,file_data.size(),file);
+    fclose(file);
+
+    printf("File uploaded successfully: %s (%zu bytes)\n",filepath.c_str(),written);
+    return written==file_data.size();
+    
+}
+//文件上传处理函数
+http_conn::HTTP_CODE http_conn::handle_file_upload()
+{
+    //1.提取boundary
+    string boundary=extract_boundary();
+    if(boundary.empty())
+    {
+        return BAD_REQUEST;//无效请求
+    }
+    printf("处理文件上传boundary:%s\n",boundary.c_str());
+    printf("内容长度:%d\n",m_content_length);
+
+    //2.构造完整boundary字符串
+    string full_boundary="--"+boundary;
+
+    //3.在请求体中查找文件数据 并转化为string并与处理
+    string content(m_string,m_content_length);
+
+    //4. 查找文件名和文件数据的分割位置
+    size_t filename_pos=content.find("filename=\"");
+    if(filename_pos==string::npos)
+    {
+        return BAD_REQUEST;//无效请求
+    }
+
+    //5,提取文件名
+    string filename="uploaded_file.dat";//默认文件名
+    size_t filename_stat=content.find("filename=\"");
+    if(filename_stat!=string::nops)
+    {
+        filename_stat+=10;//跳过filename="
+        size_t filename_end=conteny.find("\",filename_stat);
+        if(filename_end!=string::npos)
+        {
+            filename=content.substr(filename_stat,filename_end-filename_stat);
+        }
+    }
+
+    //6.查找文件数据的起始位置
+    size_t file_start=headers_end+4;//跳过\r\n\r\n
+    size_t file_end=content.find(full_boundary,file_start);//查找结束位置
+    if(file_end==string::nops)
+    {
+        file_end=content.size();
+    }else{
+            if(file_end>=2)
+            {
+                file_end-=2;//去掉前面的\r\n
+            }
+    }
+    
+
+    //7.检查数据范围是否有效
+    if(file_start>=file_end)
+    {
+        return BAD_REQUEST;//无效请求
+    }
+    
+    //8.提取文件数据
+    string file_data=content.substr(file_start,file_end-file_start);
+
+    //9.生成唯一文件名
+    string unique_filename=to_string(tiime(nullptr))+"_"+filename;
+    //10.保存上传的文件并回响
+    if(save_uploaded_file(file_data,unique_filename))
+    {
+        //构建http响应
+        add_status_line(200,ok_200_title);
+        add_headers(0);
+        add_linger();
+        add_blank_line();
+        string success_message="File uploaded successfully as "+unique_filename+"\n";
+        add_content(success_message.c_str());
+        printf("文件上传success:%s\n",unique_filename.c_str());
+
+        return FILE_REQUEST;
+    }else{
+        return INTERNAL_ERROR;//服务器内部错误
+    }
+    
+
+
 }

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>文件上传</title>
+</head>
+<body>
+    <h2>请选择要上传的文件：</h2>
+    <!-- enctype 必须为 multipart/form-data，method 为 POST -->
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <br><br>
+        <button type="submit">上传</button>
+    </form>
+    <br>
+    <a href="/welcome.html">返回欢迎页</a>
+</body>
+</html>
