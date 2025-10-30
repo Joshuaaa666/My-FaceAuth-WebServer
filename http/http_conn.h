@@ -44,6 +44,7 @@ public:
         CONNECT,
         PATH
     };
+
     enum CHECK_STATE
     {
         CHECK_STATE_REQUESTLINE = 0,
@@ -59,7 +60,11 @@ public:
         FORBIDDEN_REQUEST,
         FILE_REQUEST,
         INTERNAL_ERROR,
-        CLOSED_CONNECTION
+        CLOSED_CONNECTION,
+        
+        
+        UPLOAD_SUCCESS // 新增
+    
     };
     enum LINE_STATUS
     {
@@ -108,6 +113,15 @@ private:
     bool add_blank_line();
 
 public:
+    // ... 其他现有代码 ...
+    
+    // 添加文件上传相关函数声明
+    bool up_load();
+    std::string extract_boundary();
+    bool save_uploaded_file(const std::string& file_data, const std::string& filename);
+    HTTP_CODE handle_file_upload();
+
+public:
     static int m_epollfd;
     static int m_user_count;
     MYSQL *mysql;
@@ -147,6 +161,8 @@ private:
     char sql_user[100];
     char sql_passwd[100];
     char sql_name[100];
+
+    char m_content_type[100];  // 添加 Content-Type 存储
 };
 
 #endif
